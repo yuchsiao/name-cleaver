@@ -6,7 +6,7 @@ readme = f.read()
 f.close()
 
 setup(
-    name='name-cleaver',
+    name='namecleaver',
     version='0.6.0',
     description='Name parser and formatter (for politicians, individuals, and organizations)',
     long_description=readme,
