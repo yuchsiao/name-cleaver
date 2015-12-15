@@ -16,6 +16,8 @@ class Name(object):
         return re.search(r'[A-Z][a-z]', self.non_empty_primary_name_parts())
 
     def uppercase_the_scots(self, name_portion):
+        '''Uppercase names like MacGyver and McDonalds'''
+
         matches = re.search(self.scottish_re, name_portion)
 
         if matches:
@@ -49,6 +51,7 @@ class OrganizationName(Name):
         'natl': 'National',
         'nat\'l': 'National',
         'intl': 'International',
+        'int\'l': 'International',
         'inc': 'Incorporated',
         'llc': 'LLC',
         'llp': 'LLP',
@@ -60,8 +63,17 @@ class OrganizationName(Name):
         'coll': 'College',
         'amer': 'American',
         'ed': 'Educational',
+        '&': 'And',
+        'lc': 'Limited Company',
+        'lllp': 'LLLP',
+        'ltd': 'Limited',
+        'pllc': 'PLLC',
+        'rlllp': 'RLLLP',
+        'rllp': 'RLLP',
+        'svcs': 'Services',
+        'ctr': 'Center',
     }
-    filler_words = 'The And Of In For Group'.split()
+    filler_words = ['The', 'And', 'Of', 'In', 'For', 'Group', 'Unlimited']
 
     name = None
 
@@ -99,29 +111,56 @@ class OrganizationName(Name):
         """Removes parenthethical and dashed phrases"""
         # the last parenthesis is optional, because sometimes they are truncated
         name = re.sub(r'\s*\([^)]*\)?\s*$', '', self.name)
+        # remove any trailing that begins with "formerly"
         name = re.sub(r'(?i)\s* formerly.*$', '', name)
-        name = re.sub(r'(?i)\s*and its affiliates$', '', name)
+        # remove trailing " and its affiliates"
+        name = re.sub(r'(?i)\s* and its affiliates$', '', name)
+        # remove "et al"
         name = re.sub(r'\bet al\b', '', name)
-        
+
         # in some datasets, the name of an organization is followed by a hyphen and an abbreviated name, or a specific
         # department or geographic subdivision; we want to remove this extraneous stuff without breaking names like
         # Wal-Mart or Williams-Sonoma
 
+        # DO NOT PROCESS HYPHENATION
         # if there's a hyphen at least four characters in, proceed
-        if "-" in name:
-            hyphen_parts = name.rsplit("-", 1)
-            # if the part after the hyphen is shorter than the part before,
-            # AND isn't either a number (often occurs in Union names) or a single letter (e.g., Tech-X),
-            # AND the hyphen is preceded by either whitespace or at least four characters,
-            # discard the hyphen and whatever follows
-            if len(hyphen_parts[1]) < len(hyphen_parts[0]) and re.search(r'(\w{4,}|\s+)$', hyphen_parts[0]) and not re.match(r'^([a-zA-Z]|[0-9]+)$', hyphen_parts[1]):
-                name = hyphen_parts[0].strip()
+        #if "-" in name:
+            #hyphen_parts = name.rsplit("-", 1)
+            ## if the part after the hyphen is shorter than the part before,
+            ## AND isn't either a number (often occurs in Union names) or a single letter (e.g., Tech-X),
+            ## AND the hyphen is preceded by either whitespace or at least four characters,
+            ## discard the hyphen and whatever follows
+            #if len(hyphen_parts[1]) < len(hyphen_parts[0]) \
+            #        and re.search(r'^(\s+)|^(\w{0,4})$', hyphen_parts[1]) \
+            #        and not re.match(r'^([a-zA-Z]|[0-9]+)$', hyphen_parts[1]):
+                #name = hyphen_parts[0].strip()
 
         return name
 
     def without_punctuation(self):
-        name = re.sub(r'/', ' ', self.without_extra_phrases())
-        return re.sub(r'[,.*:;+]*', '', name)
+        # take only the part without extra phrases()
+        # ideally, it should not be here
+        name = self.without_extra_phrases()
+
+        # TODO: determine what to do with: @ % $
+        # PRESERVE: ! ? + # &
+
+        # replace '/' with a space
+        name = re.sub(r'[\/=\[\]\{\}\<\>]+', ' ', name)
+        # remove , . * : ; +
+        name = re.sub(r'[,.*:;~^"]*', '', name)
+        # normalize parathesis format from ( word... word ) to  (word... word)
+        name = re.sub(r'\(\s*(.*?)\s*\)', r' (\1) ', name)
+        # fix ` with '
+        name = name.replace('`', "'")
+        # normalize #: if followed by a number 1, then #1 instead of # 1
+        name = re.sub(r'#\s+(\d+)', r'#\1', name)
+        # normalize &: if both sides contain >= 2 characters, then aa & bb instead of aa&bb
+        #              if not, aa&b is preferred
+        name = re.sub(r'([^\s]+)\s*&\s*([^\s]+)', r'\1&\2', name)
+        name = re.sub(r'([^\s]{2,})\s*&\s*([^\s]{2,})', r'\1 & \2', name)
+
+        return name
 
     def expand(self):
         return ' '.join(self.abbreviations.get(w.lower(), w) for w in self.without_punctuation().split())
@@ -133,7 +172,8 @@ class OrganizationName(Name):
 
         # this is a hack to get around the fact that this is the only two-word phrase we want to block
         # amongst our stop words. if we end up with more, we may need a better way to do this
-        kernel = re.sub(r'\s*United States', '', kernel)
+        # do not block if name begins with United States, e.g., United States Postal Services
+        kernel = re.sub(r'\s+United States', '', kernel)
 
         return kernel
 
