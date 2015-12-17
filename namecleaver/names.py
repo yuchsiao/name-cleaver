@@ -72,6 +72,7 @@ class OrganizationName(Name):
         'rllp': 'RLLP',
         'svcs': 'Services',
         'ctr': 'Center',
+        "p'ship": 'Partnership'
     }
     filler_words = ['The', 'And', 'Of', 'In', 'For', 'Group', 'Unlimited']
 
@@ -149,21 +150,29 @@ class OrganizationName(Name):
         name = re.sub(r'[\/=\[\]\{\}\<\>]+', ' ', name)
         # remove , . * : ; +
         name = re.sub(r'[,.*:;~^"]*', '', name)
-        # normalize parathesis format from ( word... word ) to  (word... word)
+        # normalize parathesis format from ( word... word ) to  (word... ]+)\s*&\s*([^\s]+)ord)
         name = re.sub(r'\(\s*(.*?)\s*\)', r' (\1) ', name)
         # fix ` with '
         name = name.replace('`', "'")
         # normalize #: if followed by a number 1, then #1 instead of # 1
         name = re.sub(r'#\s+(\d+)', r'#\1', name)
-        # normalize &: if both sides contain >= 2 characters, then aa & bb instead of aa&bb
-        #              if not, aa&b is preferred
-        name = re.sub(r'([^\s]+)\s*&\s*([^\s]+)', r'\1&\2', name)
-        name = re.sub(r'([^\s]{2,})\s*&\s*([^\s]{2,})', r'\1 & \2', name)
+        # normalize &:
+        #              if A B C &, then ABC &
+        #              if & A B C, then & ABC
+        #              if A B &, then AB &
+        #              if & A B, then & AB
+        #              if AAAA &AAAA then AAAA & AAAA
+        #              if AAAA& AAAA then AAAA & AAAA
+        name = re.sub(r'\b([a-zA-Z]) ([a-zA-Z]) ([a-zA-Z])\s*&', r'\1\2\3 &', name)
+        name = re.sub(r'&\s*([a-zA-Z]) ([a-zA-Z]) ([a-zA-Z])\b', r'& \1\2\3', name)
+        name = re.sub(r'\b([a-zA-Z]) ([a-zA-Z])\s*&', r'\1\2 &', name)
+        name = re.sub(r'&\s*([a-zA-Z]) ([a-zA-Z])\b', r'& \1\2', name)
+        name = re.sub(r'([^\s]+)\s*&\s*([^\s]+)', r'\1 & \2', name)
 
         return name
 
     def expand(self):
-        return ' '.join(self.abbreviations.get(w.lower(), w) for w in self.without_punctuation().split())
+        return (' '.join(self.abbreviations.get(w.lower(), w) for w in self.without_punctuation().split())).upper()
 
     def kernel(self):
         """ The 'kernel' is an attempt to get at just the most pithy words in the name """
@@ -175,7 +184,10 @@ class OrganizationName(Name):
         # do not block if name begins with United States, e.g., United States Postal Services
         kernel = re.sub(r'\s+United States', '', kernel)
 
-        return kernel
+        # Ad hoc fix: 's -> s
+        kernel = kernel.upper().replace("'S", "S")
+
+        return kernel.upper()
 
     def crp_style_firm_name(self, with_et_al=True):
         if with_et_al:
