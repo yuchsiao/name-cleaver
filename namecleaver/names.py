@@ -168,8 +168,11 @@ class OrganizationName(Name):
         name = re.sub(r'\b([a-zA-Z]) ([a-zA-Z])\s*&', r'\1\2 &', name)
         name = re.sub(r'&\s*([a-zA-Z]) ([a-zA-Z])\b', r'& \1\2', name)
         name = re.sub(r'([^\s]+)\s*&\s*([^\s]+)', r'\1 & \2', name)
+        # normalize +:
+        #              simply replace + with plus and sufficient spaces
+        name = re.sub(r'\s*\+\s*', r' plus ', name)
 
-        return name
+        return name.strip()
 
     def expand(self):
         return (' '.join(self.abbreviations.get(w.lower(), w) for w in self.without_punctuation().split())).upper()
